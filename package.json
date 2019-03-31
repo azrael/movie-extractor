@@ -5,19 +5,19 @@
         "start": "babel-node index.js"
     },
     "dependencies": {
-        "args": "5.0.1",
-        "puppeteer": "1.13.0",
-        "winston": "3.2.1",
-        "yargs": "13.2.2"
+        "enquirer": "^2.3.0",
+        "puppeteer": "^1.13.0",
+        "winston": "^3.2.1",
+        "yargs": "^13.2.2"
     },
     "devDependencies": {
-        "@babel/core": "7.3.4",
-        "@babel/node": "7.2.2",
-        "@babel/plugin-proposal-object-rest-spread": "7.3.4",
-        "@babel/preset-env": "7.3.4",
-        "babel-eslint": "10.0.1",
-        "eslint": "5.15.2",
-        "eslint-plugin-babel": "5.3.0",
-        "jest": "24.5.0"
+        "@babel/core": "^7.3.4",
+        "@babel/node": "^7.2.2",
+        "@babel/plugin-proposal-object-rest-spread": "^7.3.4",
+        "@babel/preset-env": "^7.3.4",
+        "babel-eslint": "^10.0.1",
+        "eslint": "^5.15.2",
+        "eslint-plugin-babel": "^5.3.0",
+        "jest": "^24.5.0"
     }
 }

@@ -5,11 +5,28 @@ const videoPlayerRegex = /streamguard|streamstorm|streamformular|moonwalk/,
     mp4ManifestRegex = /manifest\/mp4.json/,
     pageLoadTimeout = 1000;
 
-// TODO: close browser on uncaught exception
-// TODO: retry on extracting of the manifest
+async function extractTitle(page) {
+    let title = await page.evaluate(() => document.querySelector('meta[property="og:title"]').getAttribute('content'));
 
-export async function parsePage(url, { extractTitle } = {}) {
-    let browser = await puppeteer.launch(),
+    !title && (title = await page.title());
+
+    return title || 'Unknown';
+}
+
+export async function parsePage(url, { debug } = {}) {
+    if (debug) {
+        return {
+            manifest: {
+                '360': 'http://techslides.com/demos/sample-videos/small.mp4',
+                '480': 'http://techslides.com/demos/sample-videos/small.mp4',
+                '720': 'http://techslides.com/demos/sample-videos/small.mp4',
+                '1080': 'http://techslides.com/demos/sample-videos/small.mp4'
+            },
+            title: 'Ololo'
+        };
+    }
+
+    let browser = await puppeteer.launch({ headless: !debug }),
         page = await browser.newPage(),
         frame,
         result = {};
@@ -44,13 +61,7 @@ export async function parsePage(url, { extractTitle } = {}) {
     } else
         return exit('Oh crap... There are no video sources.');
 
-    if (extractTitle) {
-        let title = await page.evaluate(() => document.querySelector('meta[property="og:title"]').getAttribute('content'));
-
-        !title && (title = await page.title());
-
-        result.title = title;
-    }
+    result.title = await extractTitle(page);
 
     browser.close();
 
