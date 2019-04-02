@@ -1,5 +1,5 @@
 import puppeteer from 'puppeteer';
-import { log } from './logger';
+import { log } from './terminal';
 
 const videoPlayerRegex = /streamguard|streamstorm|streamformular|moonwalk/,
     mp4ManifestRegex = /manifest\/mp4.json/,
@@ -13,20 +13,8 @@ async function extractTitle(page) {
     return title || 'Unknown';
 }
 
-export async function parsePage(url, { debug } = {}) {
-    if (debug) {
-        return {
-            manifest: {
-                '360': 'http://techslides.com/demos/sample-videos/small.mp4',
-                '480': 'http://techslides.com/demos/sample-videos/small.mp4',
-                '720': 'http://techslides.com/demos/sample-videos/small.mp4',
-                '1080': 'http://techslides.com/demos/sample-videos/small.mp4'
-            },
-            title: 'Ololo'
-        };
-    }
-
-    let browser = await puppeteer.launch({ headless: !debug }),
+export async function parsePage(url, { headless } = {}) {
+    let browser = await puppeteer.launch({ headless }),
         page = await browser.newPage(),
         frame,
         result = {};
@@ -45,21 +33,21 @@ export async function parsePage(url, { debug } = {}) {
     });
 
     await page.goto(url);
-    log.message(`Page ${url} is loaded.`);
+    log.success(`Page ${url} is loaded`);
 
     frame = page.frames().find(frame => videoPlayerRegex.test(frame.url()));
 
     if (frame) {
-        log.message('Ok, I\'ve detected a video player on the page.');
+        log.success('Ok, I\'ve detected a video player on the page');
         await frame.click('#play_button');
         await page.waitFor(pageLoadTimeout);
     } else
-        return exit('Sorry, I can\'t find any video player on the page.');
+        return exit('Sorry, I can\'t find any video player on the page');
 
     if (result.manifest) {
-        log.message('Got it! I\'ve found the video sources.');
+        log.success('Got it! I\'ve found the video sources');
     } else
-        return exit('Oh crap... There are no video sources.');
+        return exit('Oh crap... There are no video sources');
 
     result.title = await extractTitle(page);
 

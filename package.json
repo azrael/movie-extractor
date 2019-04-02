@@ -5,9 +5,13 @@
         "start": "babel-node index.js"
     },
     "dependencies": {
+        "ansi-colors": "^3.2.4",
+        "ansi-escapes": "^4.1.0",
         "enquirer": "^2.3.0",
         "puppeteer": "^1.13.0",
-        "winston": "^3.2.1",
+        "request": "^2.88.0",
+        "request-progress": "^3.0.0",
+        "term-size": "^1.2.0",
         "yargs": "^13.2.2"
     },
     "devDependencies": {

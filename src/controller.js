@@ -1,4 +1,4 @@
-import { log } from './logger';
+import { log } from './terminal';
 
 export function exit(code = 1) {
     process.exit(code);
