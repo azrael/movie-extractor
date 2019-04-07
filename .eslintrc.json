@@ -5,8 +5,6 @@
         "sourceType": "module"
     },
     "env": {
-        "browser": true,
-        "commonjs": true,
         "es6": true,
         "jest": true,
         "node": true
@@ -39,7 +37,7 @@
         "no-implicit-coercion": ["error", { "allow": ["!!"] }],
         "no-implicit-globals": "error",
         "no-implied-eval": "error",
-        // "no-invalid-this": "error",
+        "no-invalid-this": "error",
         "no-iterator": "error",
         "no-labels": "error",
         "no-lone-blocks": "error",
@@ -58,7 +56,6 @@
         "no-useless-call": "error",
         "no-useless-concat": "error",
         "no-useless-return": "error",
-        // "no-void": "error",
         "no-with": "error",
         "prefer-promise-reject-errors": ["error", { "allowEmptyReject": true }],
         "radix": "error",
@@ -82,7 +79,6 @@
         "array-bracket-spacing": "error",
         "block-spacing": "error",
         "brace-style": ["error", "1tbs", { "allowSingleLine": true }],
-        // "camelcase": ["error", { "properties": "never" }],
         "comma-dangle": "error",
         "comma-spacing": "error",
         "comma-style": "error",
@@ -91,7 +87,7 @@
         "func-call-spacing": "error",
         "func-style": ["error", "declaration", { "allowArrowFunctions": true }],
         "function-paren-newline": "error",
-        "id-match": ["error", "^((UNSAFE_)?[0-9A-Za-z$]+|[A-Z][A-Z\\d_]+)$", { "properties": false }],
+        "id-match": ["error", "^([0-9A-Za-z$]+|[A-Z][A-Z\\d_]+)$", { "properties": false }],
         "implicit-arrow-linebreak": "error",
         "indent": ["error", 4, { "SwitchCase": 1 }],
         "jsx-quotes": ["error", "prefer-single"],

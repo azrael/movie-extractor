@@ -27,9 +27,9 @@ function formatTime(seconds) {
 }
 
 const speedUnits = [
-    { unit: 'GB', k: 1024 * 1024 * 1024 },
-    { unit: 'MB', k: 1024 * 1024 },
-    { unit: 'KB', k: 1024 },
+    { unit: 'GB', k: 2 ** 30 },
+    { unit: 'MB', k: 2 ** 20 },
+    { unit: 'KB', k: 2 ** 10 },
     { unit: 'B', k: 1 }
 ];
 
