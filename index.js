@@ -1,10 +1,12 @@
+/* eslint-disable no-magic-numbers */
+
 import yargs from 'yargs';
-import { prompt } from 'enquirer';
 import path from 'path';
-import { parsePage } from './src/browser';
+import Browser from './src/browser';
 import { registerSafeExit, exit } from './src/controller';
-import { log } from './src/terminal';
-import { downloadFile } from './src/network';
+import Network from './src/network';
+import ai from './src/ai';
+import terminal from './src/terminal';
 
 registerSafeExit();
 
@@ -16,66 +18,72 @@ const argv = yargs
         default: false,
         type: 'boolean'
     })
+    .option('threads', {
+        describe: 'How many parallel download are allowed. It\'s relevant for the case of the TV series.',
+        default: 2,
+        type: 'number'
+    })
     .help()
     .version(false)
     .argv;
 
-const [url] = argv._;
+const { threads, _: [url] } = argv;
 
 if (!url) {
     yargs.showHelp();
     exit();
 }
 
-async function downloadMovie(url, defaultTitle) {
-    let { title, dir } = await prompt([
-        {
-            type: 'input',
-            name: 'title',
-            message: 'Enter the movie title',
-            initial: defaultTitle
-        },
-        {
-            type: 'input',
-            name: 'dir',
-            message: 'Enter the output directory',
-            initial: path.resolve(__dirname)
-        }
-    ]);
+const net = new Network({ threads });
 
-    return downloadFile(url, path.resolve(__dirname, dir, `${title}.mp4`));
+function formatEpisodeUrl(base, season, episode) {
+    return `${base}${base.indexOf('?') > -1 ? '&' : '?'}season=${season}&episode=${episode}`;
 }
 
-async function askQuestions({ manifest, title: defaultTitle }) {
-    let questions = [
-            {
-                type: 'select',
-                name: 'quality',
-                message: 'Pick a quality',
-                choices: Object.keys(manifest).map(name => ({ message: `${name}p`, name }))
-            },
-            {
-                type: 'toggle',
-                name: 'download',
-                message: 'Would you like to download the movie?',
-                enabled: 'Yep',
-                disabled: 'No',
-                initial: true
-            }
-        ],
-        { download, quality } = await prompt(questions);
-
-    if (download) {
-        await downloadMovie(manifest[quality], defaultTitle);
-    } else {
-        log.success(`Here is your movie source: ${manifest[quality]}`);
-    }
+function formatEpisodeFilename(dir, title, season, episode) {
+    return path.resolve(process.cwd(), dir, title, `season ${season}`, `${title}.s${season}e${episode}.mp4`);
 }
 
 !async function() {
-    let result = await parsePage(url, {
-        headless: !argv.browser
-    }) || {};
+    let browser = new Browser({
+            headless: !argv.browser
+        }),
+        settings = await browser.parseSettings(url),
+        { download, quality, title, dir } = await ai.ask(settings);
 
-    return askQuestions(result);
+    if (download === 2) {
+        let items = [];
+
+        for (let i = 0; i < settings.episodes.length; i++) {
+            let episode = settings.episodes[i],
+                page = formatEpisodeUrl(settings.url, settings.season, episode),
+                manifest = await browser.getManifest(page),
+                url = manifest && manifest[quality],
+                filename = formatEpisodeFilename(dir, title, settings.season, episode);
+
+            url ?
+                items.push({ url, filename }) :
+                i--;
+
+            terminal.write('', true);
+            terminal.info(`Extracting... ${Math.round((i + 1) / settings.episodes.length * 100)}%`, '');
+        }
+
+        terminal.write('', true);
+        terminal.success('Ok, I\'ve finished extracting. Let\'s download it!');
+
+        items.forEach(({ url, filename }) => net.download(url, filename));
+    } else if (download === 1) {
+        let filename = settings.type === 'serial' ?
+            formatEpisodeFilename(dir, title, settings.season, settings.episode) :
+            path.resolve(process.cwd(), dir, `${title}.mp4`);
+
+        net.download(settings.manifest[quality], filename);
+    } else if (download === 0) {
+        terminal.success(`Here is your source: ${settings.manifest[quality]}`);
+    } else {
+        terminal.error('Something went wrong...');
+    }
+
+    browser.close();
 }();

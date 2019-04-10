@@ -1,4 +1,4 @@
-import { log } from './terminal';
+import terminal from './terminal';
 
 export function exit(code = 1) {
     process.exit(code);
@@ -16,7 +16,7 @@ export function registerSafeExit({ uncaughtException = false } = {}) {
 
     // Catches uncaught exceptions
     uncaughtException && process.on('uncaughtException', err => {
-        log.error(err);
+        terminal.error(err);
         exit();
     });
 

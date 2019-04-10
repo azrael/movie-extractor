@@ -1,9 +1,7 @@
 import puppeteer from 'puppeteer';
-import { log } from './terminal';
-
-const videoPlayerRegex = /streamguard|streamstorm|streamformular|moonwalk/,
-    mp4ManifestRegex = /manifest\/mp4.json/,
-    pageLoadTimeout = 1000;
+import terminal from './terminal';
+import { videoPlayerRegex, mp4ManifestRegex, pageLoadTimeout } from './config';
+// import { ai } from './ai';
 
 async function extractTitle(page) {
     let title = await page.evaluate(() => document.querySelector('meta[property="og:title"]').getAttribute('content'));
@@ -13,45 +11,121 @@ async function extractTitle(page) {
     return title || 'Unknown';
 }
 
-export async function parsePage(url, { headless } = {}) {
-    let browser = await puppeteer.launch({ headless }),
-        page = await browser.newPage(),
-        frame,
-        result = {};
+// export async function parsePage(url, { headless } = {}) {
+//     let browser = await puppeteer.launch({ headless }),
+//         page = await browser.newPage(),
+//         frame,
+//         result = {};
+//
+//     function exit(msg) {
+//         msg && terminal.error(msg);
+//         browser.close();
+//     }
+//
+//     page.on('response', async response => {
+//         const url = response.url();
+//
+//         if (!result.manifest && mp4ManifestRegex.test(url)) {
+//             result.manifest = await response.json();
+//         }
+//     });
+//
+//     await page.goto(url);
+//     terminal.success(`Page ${url} is loaded`);
+//
+//     frame = page.frames().find(frame => videoPlayerRegex.test(frame.url()));
+//
+//     if (frame) {
+//         terminal.success('Ok, I\'ve detected a video player on the page');
+//         result.config = await frame.evaluate(() => Promise.resolve(window.video_balancer_options));
+//         await frame.click('#play_button');
+//         await page.waitFor(pageLoadTimeout);
+//     } else
+//         return exit('Sorry, I can\'t find any video player on the page');
+//
+//     if (result.manifest) {
+//         terminal.success('Got it! I\'ve found the video sources');
+//     } else
+//         return exit('Oh crap... There are no video sources');
+//
+//     result.title = await extractTitle(page);
+//
+//     browser.close();
+//
+//     return result;
+// }
 
-    function exit(msg) {
-        msg && log.error(msg);
-        browser.close();
+class Browser {
+    constructor(options = {}) {
+        this.options = options;
     }
 
-    page.on('response', async response => {
-        const url = response.url();
+    async check() {
+        if (!this.instance) this.instance = await puppeteer.launch(this.options);
+    }
 
-        if (!result.manifest && mp4ManifestRegex.test(url)) {
-            result.manifest = await response.json();
-        }
-    });
+    close() {
+        this.instance.close();
+    }
 
-    await page.goto(url);
-    log.success(`Page ${url} is loaded`);
+    terminate(msg) {
+        msg && terminal.error(msg);
+        this.close();
+    }
 
-    frame = page.frames().find(frame => videoPlayerRegex.test(frame.url()));
+    async parseSettings(url) {
+        await this.check();
 
-    if (frame) {
-        log.success('Ok, I\'ve detected a video player on the page');
-        await frame.click('#play_button');
+        let page = await this.instance.newPage(),
+            frame,
+            settings = {};
+
+        await page.goto(url);
+
+        frame = page.frames().find(frame => videoPlayerRegex.test(frame.url()));
+
+        if (frame) {
+            terminal.success('Ok, I\'ve detected a video player on the page');
+
+            let config = await frame.evaluate(() => Promise.resolve(window.video_balancer_options));
+
+            settings = {
+                type: (config.content_type || '').toLowerCase(),
+                seasons: config.seasons,
+                episodes: config.episodes,
+                season: config.season,
+                episode: config.episode,
+                url: frame.url(),
+                title: await extractTitle(page)
+            };
+        } else
+            return this.terminate('Sorry, I can\'t find any video player on the page');
+
+        settings.manifest = await this.getManifest(settings.url);
+
+        return settings;
+    }
+
+    async getManifest(url) {
+        await this.check();
+
+        let page = await this.instance.newPage(),
+            manifest;
+
+        page.on('response', async response => {
+            const url = response.url();
+
+            if (!manifest && mp4ManifestRegex.test(url)) {
+                manifest = await response.json();
+            }
+        });
+
+        await page.goto(url);
+        await page.click('#play_button');
         await page.waitFor(pageLoadTimeout);
-    } else
-        return exit('Sorry, I can\'t find any video player on the page');
 
-    if (result.manifest) {
-        log.success('Got it! I\'ve found the video sources');
-    } else
-        return exit('Oh crap... There are no video sources');
-
-    result.title = await extractTitle(page);
-
-    browser.close();
-
-    return result;
+        return manifest;
+    }
 }
+
+export default Browser;

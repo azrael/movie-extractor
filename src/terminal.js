@@ -1,4 +1,4 @@
-import { cursorLeft, eraseLine } from 'ansi-escapes';
+import { eraseLines, eraseLine, cursorLeft } from 'ansi-escapes';
 import termSize from 'term-size';
 import colors from 'ansi-colors';
 
@@ -8,20 +8,30 @@ const symbols = {
     info: colors.blueBright(colors.symbols.bullet)
 };
 
-export function writeLine(msg) {
-    process.stderr.write(`${eraseLine}${cursorLeft}${msg}`);
+class Terminal {
+    write(msg, erase) {
+        process.stderr.write(`${erase ? eraseLine : ''}${msg}`);
+    }
+
+    log(type, msg, delimiter = '\n') {
+        this.write(`${cursorLeft}${symbols[type] || ' '} ${colors.bold.white(msg)}${delimiter}`);
+    }
+
+    success(...args) { this.log('success', ...args); }
+
+    error(...args) { this.log('fail', ...args); }
+
+    info(...args) { this.log('info', ...args); }
+
+    size() {
+        return termSize();
+    }
+
+    clear(lines = 0) {
+        this.write(eraseLines(lines));
+    }
 }
 
-function writeLogLine(type, msg, delimiter = '\n') {
-    writeLine(`${symbols[type]} ${colors.bold.white(msg)}${delimiter}`);
-}
+const terminal = new Terminal();
 
-export const log = {
-    success: (...args) => writeLogLine('success', ...args),
-    error: (...args) => writeLogLine('fail', ...args),
-    info: (...args) => writeLogLine('info', ...args)
-};
-
-export function getSize() {
-    return termSize();
-}
+export default terminal;

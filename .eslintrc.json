@@ -5,6 +5,7 @@
         "sourceType": "module"
     },
     "env": {
+        "browser": true,
         "es6": true,
         "jest": true,
         "node": true
@@ -37,7 +38,6 @@
         "no-implicit-coercion": ["error", { "allow": ["!!"] }],
         "no-implicit-globals": "error",
         "no-implied-eval": "error",
-        "no-invalid-this": "error",
         "no-iterator": "error",
         "no-labels": "error",
         "no-lone-blocks": "error",

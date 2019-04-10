@@ -1,10 +1,11 @@
 /* eslint-disable no-magic-numbers */
 
 import fs from 'fs';
+import path from 'path';
 import request from 'request';
 import progress from 'request-progress';
 import colors from 'ansi-colors';
-import { writeLine, getSize, log } from './terminal';
+import terminal from './terminal';
 
 function prepareMessageBlock(msg, len = 16) {
     return `${msg}${' '.repeat(len)}`.slice(0, len);
@@ -41,12 +42,13 @@ function formatSpeed(value) {
     return `${Math.round(value / k)} ${unit}/s`;
 }
 
-function onProgress({ percent, speed, time: { remaining } }) {
-    let { columns } = getSize(),
+function drawProgress(name, { percent, speed, time: { remaining } }) {
+    let { columns } = terminal.size(),
         done = Math.round(columns * percent),
         msg = '  ',
         parts;
 
+    msg += name ? `${name}${' '.repeat(8)}` : '';
     msg += f(`${Math.round(percent * 100)}%`);
     msg += f(`ETA ${formatTime(Math.round(remaining))}`);
     msg += f(formatSpeed(speed));
@@ -56,15 +58,119 @@ function onProgress({ percent, speed, time: { remaining } }) {
         `${msg.slice(done)}${' '.repeat(columns - done)}`.slice(0, columns - done)
     ];
 
-    writeLine(colors.bold.bgBlueBright.white(parts[0]) + colors.bold.white(parts[1]));
+    terminal.write(colors.bold.bgBlueBright.white(parts[0]) + colors.bold.white(parts[1]), true);
 }
 
-export function downloadFile(url, path) {
-    log.info('Start downloading...', '');
+class DownloadItem {
+    constructor(url, filename) {
+        this.url = url;
+        this.filename = filename;
+        this.name = path.basename(filename);
+        this.status = 'queued';
+        this.state = null;
+    }
 
-    return progress(request(url), { throttle: 500 })
-        .on('progress', onProgress)
-        .on('error', err => log.error(`Something went wrong...\n\n${err}`))
-        .on('end', () => log.success('Download finished!'))
-        .pipe(fs.createWriteStream(path));
+    onProgress = state => { this.state = state; };
+
+    onError = () => { this.status = 'error'; };
+
+    onEnd = () => { this.status = 'done'; };
+
+    start() {
+        this.status = 'progress';
+        progress(request(this.url), { throttle: 500 })
+            .on('progress', this.onProgress)
+            .on('error', this.onError)
+            .on('end', this.onEnd)
+            .pipe(fs.createWriteStream(this.filename));
+    }
+
+    print() {
+        switch (this.status) {
+            case 'queued':
+                terminal.info(`${this.name} queued for download...`, '');
+                break;
+            case 'progress':
+                this.state ?
+                    drawProgress(this.name, this.state) :
+                    terminal.info(`Start downloading ${this.name}...`, '');
+                break;
+            case 'done':
+                terminal.success(`Download of ${this.name} is finished!`, '');
+                break;
+            case 'error':
+                terminal.error(`Something went wrong with ${this.name}...`, '');
+                break;
+        }
+
+        terminal.write('\n');
+    }
 }
+
+class Network {
+    constructor({ threads = 1 } = {}) {
+        this.threads = threads;
+    }
+
+    #queue = [];
+
+    #timer = null;
+
+    #total = 0;
+
+    stat() {
+        return this.#queue.reduce((memo, item) => {
+            if (item.status === 'queued') {
+                !memo.next && (memo.next = item);
+                memo.rest++;
+            }
+
+            if (item.status === 'progress') {
+                memo.count++;
+                memo.rest++;
+            }
+
+            return memo;
+        }, { next: null, count: 0, rest: 0 });
+    }
+
+    tick() {
+        let { next, count, rest } = this.stat();
+
+        terminal.clear(this.#total + 1);
+
+        this.#total = this.#queue.length;
+
+        while (count < this.threads && next) {
+            next.start();
+
+            let stat = this.stat();
+
+            next = stat.next;
+            count = stat.count;
+        }
+
+        this.#queue.forEach(item => item.print());
+
+        rest > 0 && (this.#timer = setTimeout(() => this.tick(), 500));
+    }
+
+    async download(url, filename) {
+        if (!url || !filename) return;
+
+        await new Promise(resolve => {
+            fs.mkdir(path.dirname(filename), { recursive: true }, err => {
+                if (err) throw err;
+                resolve();
+            });
+        });
+
+        this.#queue.push(new DownloadItem(url, filename));
+
+        if (!this.#timer) {
+            this.tick();
+        }
+    }
+}
+
+export default Network;
