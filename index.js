@@ -49,39 +49,22 @@ function formatEpisodeFilename(dir, title, season, episode) {
 // const configFilename = `${process.env.HOME}/.CONFIG`;
 const configFilename = '.CONFIG';
 
-function checkConfig() {
-    // fs.open(configFilename, 'r', (err, fd) => {
-    //     if (err) {
-    //         if (err.code === 'ENOENT') {
-    //             console.error('myfile does not exist');
-    //             return;
-    //         }
-    //
-    //         throw err;
-    //     }
-    //
-    //     readMyData(fd);
-    // });
+!async function() {
+    let browser = new Browser({
+            headless: !argv.browser
+        }),
+        config;
 
     try {
-        let config = yaml.safeLoad(fs.readFileSync(configFilename, 'utf8'));
-        console.log(config);
+        config = yaml.safeLoad(fs.readFileSync(configFilename));
     } catch (err) {
         if (err.code === 'ENOENT') {
-
+            config = { omdbApiKey: await browser.registerOMDB() };
+            fs.writeFileSync(configFilename, yaml.safeDump(config));
         }
     }
-}
 
-!async function() {
-    checkConfig();
-
-    // let browser = new Browser({
-    //     headless: !argv.browser
-    // });
-    // let apiKey = await browser.registerOMDB();
-    // console.log(apiKey);
-    // browser.close();
+    browser.close();
 
     // let browser = new Browser({
     //         headless: !argv.browser

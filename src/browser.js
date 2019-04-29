@@ -22,7 +22,7 @@ class Browser {
     }
 
     close() {
-        this.instance.close();
+        this.instance && this.instance.close();
     }
 
     terminate(msg) {
