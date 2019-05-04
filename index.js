@@ -1,8 +1,9 @@
 /* eslint-disable no-magic-numbers */
 
-import yargs from 'yargs';
-import path from 'path';
+import os from 'os';
 import fs from 'fs';
+import path from 'path';
+import yargs from 'yargs';
 import yaml from 'js-yaml';
 import { registerSafeExit, exit } from './src/controller';
 import Browser from './src/browser';
@@ -51,7 +52,7 @@ function formatEpisodeFilename(dir, title, season, episode) {
     return path.resolve(process.cwd(), dir, title, `season ${season}`, `${title}.s${season}e${episode}.mp4`);
 }
 
-// const configFilename = `${process.env.HOME}/.CONFIG`;
+// const configFilename = `${os.homedir()}/.CONFIG`;
 const configFilename = '.CONFIG';
 
 !async function() {
@@ -59,35 +60,50 @@ const configFilename = '.CONFIG';
 
     try {
         config = yaml.safeLoad(fs.readFileSync(configFilename));
+        omdb.setup(config.omdbApiKey);
     } catch (err) {
         if (err.code === 'ENOENT') {
+            terminal.info('Wait a minute, I need to initialize launch settings...', '');
             config = { omdbApiKey: await omdb.register() };
             fs.writeFileSync(configFilename, yaml.safeDump(config));
+            terminal.clearLine();
         }
     }
 
-    let settings = await crawler.getPlayerSettings(url),
+    const settings = await crawler.getPlayerSettings(url),
         { download, quality, title, dir } = await ai.ask(settings);
 
     if (download === 2) {
-        let items = [];
+        let items = [],
+            failed = 0,
+            attempts = 1,
+            msg;
 
         for (let i = 0; i < settings.episodes.length; i++) {
             let episode = settings.episodes[i],
                 page = formatEpisodeUrl(settings.url, settings.season, episode),
-                manifest = await crawler.getManifest(page),
-                url = manifest && manifest[quality],
+                url = (await crawler.getManifest(page) || {})[quality], // eslint-disable-line no-await-in-loop
                 filename = formatEpisodeFilename(dir, title, settings.season, episode);
 
-            url ?
-                items.push({ url, filename }) :
+            if (url) {
+                items.push({ url, filename });
+                attempts = 1;
+            } else if (attempts < 5) {
                 i--;
+                attempts++;
+            } else {
+                failed++;
+                attempts = 1;
+            }
 
-            terminal.write('', true);
-            terminal.info(`Extracting... ${Math.round((i + 1) / settings.episodes.length * 100)}%`, '');
+            msg = 'Extracting... ';
+            msg += `${Math.round((i + 1) / settings.episodes.length * 100)}%`;
+            failed > 0 && (msg += ` (${failed} failed)`);
+            terminal.clearLine();
+            terminal.info(msg, '');
         }
 
-        terminal.write('', true);
+        terminal.clearLine();
         terminal.success('Ok, I\'ve finished extracting. Let\'s download it!');
 
         items.forEach(({ url, filename }) => net.download(url, filename));

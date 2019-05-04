@@ -58,7 +58,8 @@ function drawProgress(name, { percent, speed, time: { remaining } }) {
         `${msg.slice(done)}${' '.repeat(columns - done)}`.slice(0, columns - done)
     ];
 
-    terminal.write(colors.bold.bgBlueBright.white(parts[0]) + colors.bold.white(parts[1]), true);
+    terminal.clearLine();
+    terminal.write(colors.bold.bgBlueBright.white(parts[0]) + colors.bold.white(parts[1]));
 }
 
 class DownloadItem {
@@ -137,7 +138,7 @@ class Network {
     tick() {
         let { next, count, rest } = this.stat();
 
-        terminal.clear(this.#total + 1);
+        terminal.clearLines(this.#total + 1);
 
         this.#total = this.#queue.length;
 

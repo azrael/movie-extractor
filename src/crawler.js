@@ -64,7 +64,7 @@ class Crawler {
         await page.click('#play_button');
         await page.waitFor(1000);
 
-        return manifest;
+        return manifest || {};
     }
 }
 

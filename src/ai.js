@@ -1,3 +1,4 @@
+import os from 'os';
 import { prompt } from 'enquirer';
 
 const currentDir = process.cwd();
@@ -45,7 +46,7 @@ const questions = {
 };
 
 class AI {
-    async ask({ type, manifest, title }) {
+    async ask({ type, manifest = {}, title } = {}) {
         let choices = Object.keys(manifest).map(value => ({ name: `${value}p`, value })),
             res = await prompt([
                 type === 'serial' ? questions.series() : questions.download(),
@@ -59,6 +60,8 @@ class AI {
                 questions.title(title),
                 questions.dir()
             ]);
+
+            additional.dir = additional.dir.replace(/^~/, os.homedir());
 
             res = { ...res, ...additional };
         }

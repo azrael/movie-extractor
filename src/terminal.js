@@ -9,8 +9,8 @@ const symbols = {
 };
 
 class Terminal {
-    write(msg, erase) {
-        process.stderr.write(`${erase ? eraseLine : ''}${msg}`);
+    write(msg) {
+        process.stderr.write(msg);
     }
 
     log(type, msg, delimiter = '\n') {
@@ -27,8 +27,12 @@ class Terminal {
         return termSize();
     }
 
-    clear(lines = 0) {
+    clearLines(lines = 0) {
         this.write(eraseLines(lines));
+    }
+
+    clearLine() {
+        this.write(eraseLine);
     }
 }
 

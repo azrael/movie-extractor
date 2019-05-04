@@ -1,11 +1,18 @@
+/* eslint-disable no-magic-numbers */
+
 import Browser from './browser';
 
 const browser = new Browser();
 
 class OMDB {
+    setup(apiKey) {
+        this.apiKey = apiKey;
+    }
+
     async register() {
         const mailer = await browser.newPage(),
-            omdb = await browser.newPage();
+            omdb = await browser.newPage(),
+            self = this;
 
         const res = new Promise(resolve => {
             let timer = setTimeout(resolve, 10000);
@@ -24,6 +31,7 @@ class OMDB {
 
                         activationUrl && await omdb.goto(activationUrl);
 
+                        self.setup(apiKey);
                         resolve(apiKey);
                     }
                 }
@@ -45,6 +53,8 @@ class OMDB {
 
         return res;
     }
+
+    async search(title, type) {}
 }
 
 export default OMDB;
