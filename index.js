@@ -41,8 +41,8 @@ if (!url) {
 
 const net = new Network({ threads }),
     browser = new Browser({ headless: !argv.browser }),
-    omdb = new OMDB(),
-    crawler = new Crawler();
+    omdb = new OMDB(browser),
+    crawler = new Crawler(browser);
 
 function formatEpisodeUrl(base, season, episode) {
     return `${base}${base.indexOf('?') > -1 ? '&' : '?'}season=${season}&episode=${episode}`;
@@ -50,6 +50,10 @@ function formatEpisodeUrl(base, season, episode) {
 
 function formatEpisodeFilename(dir, title, season, episode) {
     return path.resolve(process.cwd(), dir, title, `season ${season}`, `${title}.s${season}e${episode}.mp4`);
+}
+
+function interrupt() {
+    browser.close();
 }
 
 // const configFilename = `${os.homedir()}/.CONFIG`;
@@ -70,8 +74,11 @@ const configFilename = '.CONFIG';
         }
     }
 
-    const settings = await crawler.getPlayerSettings(url),
-        { download, quality, title, dir } = await ai.ask(settings);
+    const settings = await crawler.getPlayerSettings(url);
+
+    if (!settings) return interrupt();
+
+    const { download, quality, title, dir } = await ai.ask(settings);
 
     if (download === 2) {
         let items = [],
@@ -86,7 +93,7 @@ const configFilename = '.CONFIG';
                 filename = formatEpisodeFilename(dir, title, settings.season, episode);
 
             if (url) {
-                items.push({ url, filename });
+                items.push({ url, filename, season: settings.season, episode });
                 attempts = 1;
             } else if (attempts < 5) {
                 i--;
@@ -106,7 +113,11 @@ const configFilename = '.CONFIG';
         terminal.clearLine();
         terminal.success('Ok, I\'ve finished extracting. Let\'s download it!');
 
-        items.forEach(({ url, filename }) => net.download(url, filename));
+        items.forEach(async ({ url, filename, season, episode }) => {
+            // net.download(url, filename)
+            let res = await omdb.search(title, { season, episode });
+            console.log(res);
+        });
     } else if (download === 1) {
         let filename = settings.type === 'serial' ?
             formatEpisodeFilename(dir, title, settings.season, settings.episode) :

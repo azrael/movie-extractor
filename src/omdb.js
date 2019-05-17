@@ -1,17 +1,20 @@
 /* eslint-disable no-magic-numbers */
 
-import Browser from './browser';
-
-const browser = new Browser();
+import qs from 'qs';
+import fetch from 'node-fetch';
 
 class OMDB {
+    constructor(browser) {
+        this.browser = browser;
+    }
+
     setup(apiKey) {
         this.apiKey = apiKey;
     }
 
     async register() {
-        const mailer = await browser.newPage(),
-            omdb = await browser.newPage(),
+        const mailer = await this.browser.newPage(),
+            omdb = await this.browser.newPage(),
             self = this;
 
         const res = new Promise(resolve => {
@@ -54,7 +57,20 @@ class OMDB {
         return res;
     }
 
-    async search(title, type) {}
+    async search(title, options = {}) {
+        if (!this.apiKey) return;
+
+        const query = {
+            t: title,
+            ...options,
+            apikey: this.apiKey,
+            r: 'json'
+        };
+
+        const res = await fetch(`http://www.omdbapi.com/?${qs.stringify(query)}`);
+
+        return res.json();
+    }
 }
 
 export default OMDB;

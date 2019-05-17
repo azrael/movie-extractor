@@ -1,15 +1,11 @@
 /* eslint-disable no-magic-numbers */
 
 import puppeteer from 'puppeteer';
-import terminal from './terminal';
 
 let browser;
 
 class Browser {
     constructor(options = {}) {
-        // Browser is a singleton
-        if (browser) return browser;
-
         this.options = options;
         browser = this;
     }
@@ -20,11 +16,6 @@ class Browser {
 
     close() {
         this.instance && this.instance.close();
-    }
-
-    terminate(msg) {
-        msg && terminal.error(msg);
-        this.close();
     }
 
     async newPage() {

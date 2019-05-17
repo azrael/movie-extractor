@@ -1,11 +1,8 @@
 /* eslint-disable no-magic-numbers */
 
-import Browser from './browser';
 import terminal from './terminal';
 
-const browser = new Browser();
-
-const videoPlayerRegex = /streamguard|streamstorm|streamformular|moonwalk/,
+const videoPlayerRegex = /streamguard|streamstorm|streamformular|moonwalk|mastarti/,
     mp4ManifestRegex = /manifest\/mp4.json/;
 
 async function extractTitle(page) {
@@ -17,8 +14,12 @@ async function extractTitle(page) {
 }
 
 class Crawler {
+    constructor(browser) {
+        this.browser = browser;
+    }
+
     async getPlayerSettings(url) {
-        let page = await browser.newPage(),
+        let page = await this.browser.newPage(),
             frame,
             settings = {};
 
@@ -40,16 +41,25 @@ class Crawler {
                 url: frame.url(),
                 title: await extractTitle(page)
             };
-        } else
-            return browser.terminate('Sorry, I can\'t find any video player on the page');
+        } else {
+            terminal.error('Sorry, I can\'t find any video player on the page');
+
+            return;
+        }
 
         settings.manifest = await this.getManifest(settings.url);
+
+        if (!settings.manifest) {
+            terminal.error('Oh crap, this is a live streaming. I can\'t download it');
+
+            return;
+        }
 
         return settings;
     }
 
     async getManifest(url) {
-        let page = await browser.newPage(),
+        let page = await this.browser.newPage(),
             manifest;
 
         page.on('response', async response => {
@@ -64,7 +74,7 @@ class Crawler {
         await page.click('#play_button');
         await page.waitFor(1000);
 
-        return manifest || {};
+        return manifest;
     }
 }
 
