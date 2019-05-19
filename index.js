@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import yargs from 'yargs';
 import yaml from 'js-yaml';
+import { spawn } from 'child_process';
 import { registerSafeExit, exit } from './src/controller';
 import Browser from './src/browser';
 import Crawler from './src/crawler';
@@ -44,20 +45,35 @@ const net = new Network({ threads }),
     omdb = new OMDB(browser),
     crawler = new Crawler(browser);
 
-function formatEpisodeUrl(base, season, episode) {
-    return `${base}${base.indexOf('?') > -1 ? '&' : '?'}season=${season}&episode=${episode}`;
+// const configFilename = `${os.homedir()}/.CONFIG`;
+const configFilename = '.CONFIG';
+
+function formatEpisodeFilename(title, season, episode) {
+    return `${title}.s${season}e${episode}.mp4`;
 }
 
-function formatEpisodeFilename(dir, title, season, episode) {
-    return path.resolve(process.cwd(), dir, title, `season ${season}`, `${title}.s${season}e${episode}.mp4`);
+function formatEpisodePath(dir, title, season, episode) {
+    return path.resolve(process.cwd(), dir, title, `season ${season}`, formatEpisodeFilename(title, season, episode));
 }
 
 function interrupt() {
     browser.close();
 }
 
-// const configFilename = `${os.homedir()}/.CONFIG`;
-const configFilename = '.CONFIG';
+async function prepareFile({ src, dest, title, options = {} }) {
+    let [ready, tags] = await Promise.all([
+        net.download(src, dest),
+        omdb.search(title, options)
+    ]);
+
+    if (ready && tags) {
+        spawn('python', [
+            path.resolve(__dirname, 'py/metadata.py'),
+            dest,
+            JSON.stringify(tags)
+        ]);
+    }
+}
 
 !async function() {
     let config;
@@ -78,52 +94,39 @@ const configFilename = '.CONFIG';
 
     if (!settings) return interrupt();
 
-    const { download, quality, title, dir } = await ai.ask(settings);
+    const { download, quality, title, dir } = await ai.ask(settings),
+        season = settings.season;
 
     if (download === 2) {
-        let items = [],
-            failed = 0,
-            attempts = 1,
-            msg;
+        terminal.info('Extracting...', '');
 
         for (let i = 0; i < settings.episodes.length; i++) {
             let episode = settings.episodes[i],
-                page = formatEpisodeUrl(settings.url, settings.season, episode),
-                url = (await crawler.getManifest(page) || {})[quality], // eslint-disable-line no-await-in-loop
-                filename = formatEpisodeFilename(dir, title, settings.season, episode);
+                url = (await crawler.getEpisodeManifest(settings.url, season, episode) || {})[quality]; // eslint-disable-line no-await-in-loop
 
-            if (url) {
-                items.push({ url, filename, season: settings.season, episode });
-                attempts = 1;
-            } else if (attempts < 5) {
-                i--;
-                attempts++;
-            } else {
-                failed++;
-                attempts = 1;
-            }
+            i === 0 && terminal.clearLine();
+            prepareFile({
+                src: url,
+                dest: formatEpisodePath(dir, title, season, episode),
+                title,
+                options: { season, episode }
+            });
+        }
+    } else if (download === 1) {
+        let filename = `${title}.mp4`,
+            options = {};
 
-            msg = 'Extracting... ';
-            msg += `${Math.round((i + 1) / settings.episodes.length * 100)}%`;
-            failed > 0 && (msg += ` (${failed} failed)`);
-            terminal.clearLine();
-            terminal.info(msg, '');
+        if (settings.type === 'serial') {
+            filename = formatEpisodeFilename(title, settings.season, settings.episode);
+            options = { season, episode: settings.episode };
         }
 
-        terminal.clearLine();
-        terminal.success('Ok, I\'ve finished extracting. Let\'s download it!');
-
-        items.forEach(async ({ url, filename, season, episode }) => {
-            // net.download(url, filename)
-            let res = await omdb.search(title, { season, episode });
-            console.log(res);
+        prepareFile({
+            src: settings.manifest[quality],
+            dest: path.resolve(process.cwd(), dir, filename),
+            title,
+            options
         });
-    } else if (download === 1) {
-        let filename = settings.type === 'serial' ?
-            formatEpisodeFilename(dir, title, settings.season, settings.episode) :
-            path.resolve(process.cwd(), dir, `${title}.mp4`);
-
-        net.download(settings.manifest[quality], filename);
     } else if (download === 0) {
         terminal.success(`Here is your source: ${settings.manifest[quality]}`);
     } else {

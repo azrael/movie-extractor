@@ -6,7 +6,11 @@ const videoPlayerRegex = /streamguard|streamstorm|streamformular|moonwalk|mastar
     mp4ManifestRegex = /manifest\/mp4.json/;
 
 async function extractTitle(page) {
-    let title = await page.evaluate(() => document.querySelector('meta[property="og:title"]').getAttribute('content'));
+    let title = await page.evaluate(() => {
+        let $title = document.querySelector('meta[property="og:title"]');
+
+        return $title ? $title.getAttribute('content') : '';
+    });
 
     !title && (title = await page.title());
 
@@ -75,6 +79,12 @@ class Crawler {
         await page.waitFor(1000);
 
         return manifest;
+    }
+
+    getEpisodeManifest(url, season, episode) {
+        url = `${url}${url.indexOf('?') > -1 ? '&' : '?'}season=${season}&episode=${episode}`;
+
+        return this.getManifest(url);
     }
 }
 

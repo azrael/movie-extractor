@@ -57,7 +57,7 @@ class AI {
 
         if (res.download) {
             let additional = await prompt([
-                questions.title(title),
+                questions.title(title, type === 'serial'),
                 questions.dir()
             ]);
 

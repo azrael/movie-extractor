@@ -6,6 +6,7 @@ import fetch from 'node-fetch';
 class OMDB {
     constructor(browser) {
         this.browser = browser;
+        this.series = {};
     }
 
     setup(apiKey) {
@@ -64,12 +65,43 @@ class OMDB {
             t: title,
             ...options,
             apikey: this.apiKey,
-            r: 'json'
+            r: 'json',
+            type: 'episode' in options ? 'episode' : 'movie'
         };
 
-        const res = await fetch(`http://www.omdbapi.com/?${qs.stringify(query)}`);
+        let res = await fetch(`http://www.omdbapi.com/?${qs.stringify(query)}`);
 
-        return res.json();
+        res = await res.json();
+
+        if (res.Response !== 'True') return null;
+
+        res = {
+            name: res.Title,
+            plot: res.Plot.slice(0, 255),
+            date: `${new Date(Date.parse(`${res.Released} GMT`)).toISOString().split('.')[0]}Z`,
+            genre: res.Genre.split(', '),
+            cover: res.Poster
+        };
+
+        if (query.type === 'episode') {
+            if (!this.series[title]) {
+                delete query.season;
+                delete query.episode;
+                query.type = 'series';
+
+                this.series[title] = await fetch(`http://www.omdbapi.com/?${qs.stringify(query)}`).then(res => res.json());
+            }
+
+            res = {
+                ...res,
+                show: this.series[title].Title,
+                season: options.season,
+                episode: options.episode,
+                cover: this.series[title].Poster
+            };
+        }
+
+        return res;
     }
 }
 

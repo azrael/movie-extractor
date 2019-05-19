@@ -7,12 +7,6 @@ import progress from 'request-progress';
 import colors from 'ansi-colors';
 import terminal from './terminal';
 
-function prepareMessageBlock(msg, len = 16) {
-    return `${msg}${' '.repeat(len)}`.slice(0, len);
-}
-
-const f = prepareMessageBlock;
-
 function formatTime(seconds) {
     let hours = Math.floor(seconds / 3600),
         minutes = Math.floor(seconds / 60),
@@ -27,31 +21,48 @@ function formatTime(seconds) {
     return res.slice(0, 2).join('');
 }
 
-const speedUnits = [
+const units = [
     { unit: 'GB', k: 2 ** 30 },
     { unit: 'MB', k: 2 ** 20 },
     { unit: 'KB', k: 2 ** 10 },
     { unit: 'B', k: 1 }
 ];
 
+function formatSize(value) {
+    if (!value) return '0 B';
+
+    let { unit, k } = units.find(({ k }) => value >= k);
+
+    return `${(value / k).toFixed(1)} ${unit}`;
+}
+
 function formatSpeed(value) {
     if (!value) return '0 B/s';
 
-    let { unit, k } = speedUnits.find(({ k }) => value >= k);
+    let { unit, k } = units.find(({ k }) => value >= k);
 
-    return `${Math.round(value / k)} ${unit}/s`;
+    return `${(value / k).toFixed(1)} ${unit}/s`;
 }
 
-function drawProgress(name, { percent, speed, time: { remaining } }) {
+function drawProgress(name, { percent, speed, time: { remaining }, size: { transferred } }) {
     let { columns } = terminal.size(),
         done = Math.round(columns * percent),
-        msg = '  ',
+        suffix = [
+            `${Math.round(percent * 100)}%`.padEnd(7),
+            formatSize(transferred).padEnd(12),
+            formatSpeed(speed).padEnd(15),
+            `ETA ${formatTime(Math.round(remaining))}`.padEnd(12)
+        ]
+            .join(''),
+        maxLength = columns - suffix.length - 5,
+        msg,
         parts;
 
-    msg += name ? `${name}${' '.repeat(8)}` : '';
-    msg += f(`${Math.round(percent * 100)}%`);
-    msg += f(`ETA ${formatTime(Math.round(remaining))}`);
-    msg += f(formatSpeed(speed));
+    if (name.length > maxLength) {
+        name = `${name.slice(0, maxLength - 1)}…`;
+    }
+
+    msg = `  ${name.padEnd(maxLength)}   ${suffix}`;
 
     parts = [
         `${msg}${' '.repeat(done)}`.slice(0, done),
@@ -63,19 +74,26 @@ function drawProgress(name, { percent, speed, time: { remaining } }) {
 }
 
 class DownloadItem {
-    constructor(url, filename) {
+    constructor(url, filename, onFinish) {
         this.url = url;
         this.filename = filename;
         this.name = path.basename(filename);
         this.status = 'queued';
         this.state = null;
+        this.onFinish = onFinish || (() => {});
     }
 
     onProgress = state => { this.state = state; };
 
-    onError = () => { this.status = 'error'; };
+    onError = err => {
+        this.status = 'error';
+        this.onFinish(err);
+    };
 
-    onEnd = () => { this.status = 'done'; };
+    onEnd = () => {
+        this.status = 'done';
+        this.onFinish();
+    };
 
     start() {
         this.status = 'progress';
@@ -89,12 +107,12 @@ class DownloadItem {
     print() {
         switch (this.status) {
             case 'queued':
-                terminal.info(`${this.name} queued for download...`, '');
+                terminal.info(`${this.name} is queued for download...`, '');
                 break;
             case 'progress':
                 this.state ?
                     drawProgress(this.name, this.state) :
-                    terminal.info(`Start downloading ${this.name}...`, '');
+                    terminal.info(`Start downloading of ${this.name}...`, '');
                 break;
             case 'done':
                 terminal.success(`Download of ${this.name} is finished!`, '');
@@ -166,11 +184,10 @@ class Network {
             });
         });
 
-        this.#queue.push(new DownloadItem(url, filename));
-
-        if (!this.#timer) {
-            this.tick();
-        }
+        return new Promise(resolve => {
+            this.#queue.push(new DownloadItem(url, filename, err => resolve(!err)));
+            if (!this.#timer) this.tick();
+        });
     }
 }
 
