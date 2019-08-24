@@ -45,8 +45,7 @@ const net = new Network({ threads }),
     omdb = new OMDB(browser),
     crawler = new Crawler(browser);
 
-// const configFilename = `${os.homedir()}/.CONFIG`;
-const configFilename = '.CONFIG';
+const configFilename = process.env.DEV ? '.CONFIG' : `${os.homedir()}/.CONFIG`;
 
 function formatEpisodeFilename(title, season, episode) {
     return `${title}.s${season}e${episode}.mp4`;
@@ -57,6 +56,7 @@ function formatEpisodePath(dir, title, season, episode) {
 }
 
 function interrupt() {
+    terminal.error('Oh no... This is an emergency program termination');
     browser.close();
 }
 
@@ -76,7 +76,7 @@ async function prepareFile({ src, dest, title, options = {} }) {
 }
 
 !async function() {
-    let config;
+    let config, settings, translation, target, manifest, title;
 
     try {
         config = yaml.safeLoad(fs.readFileSync(configFilename));
@@ -90,47 +90,74 @@ async function prepareFile({ src, dest, title, options = {} }) {
         }
     }
 
-    const settings = await crawler.getPlayerSettings(url);
+    settings = await crawler.getPlayerSettings(url);
+    title = settings.title;
 
     if (!settings) return interrupt();
 
-    const { download, quality, title, dir } = await ai.ask(settings),
-        season = settings.season;
+    translation = await ai.translation(settings.translations);
+    target = settings.formatUrl(translation);
+    settings = await crawler.extractVideoInfo(target);
+    manifest = await crawler.getManifest(target);
 
-    if (download === 2) {
+    if (settings.type === 'movie') {
+        let info = await ai.video(manifest, title, 'movie');
+
+        prepareFile({
+            src: manifest[info.quality],
+            dest: path.resolve(process.cwd(), info.dir, `${info.title}.mp4`),
+            title: info.title
+        });
+    }
+
+    if (settings.type === 'serial') {
+        let info = await ai.video(manifest, title, 'serial'),
+            download = await ai.series(),
+            seasons = settings.seasons,
+            req = [];
+
+        if (download === 'last') {
+            seasons = seasons.slice(-1);
+        }
+
+        if (download === 'seasons') {
+            seasons = await ai.seasons(seasons);
+        }
+
+        for (let i = 0; i < seasons.length; i++) {
+            let season = seasons[i],
+                target = settings.formatUrl(translation, { season }),
+                info = await crawler.extractVideoInfo(target); // eslint-disable-line no-await-in-loop
+
+            req = req.concat(info.episodes.map(episode => ({ season, episode })));
+        }
+
+        if (download === 'last') {
+            req = req.slice(-1);
+        }
+
+        if (download === 'custom') {
+            let selected = await ai.episodes(req);
+
+            req = selected.map(i => req[i]);
+        }
+
         terminal.info('Extracting...', '');
 
-        for (let i = 0; i < settings.episodes.length; i++) {
-            let episode = settings.episodes[i],
-                url = (await crawler.getEpisodeManifest(settings.url, season, episode) || {})[quality]; // eslint-disable-line no-await-in-loop
+        for (let i = 0; i < req.length; i++) {
+            let { season, episode } = req[i],
+                url = settings.formatUrl(translation, { season, episode });
+
+            url = (await crawler.getManifest(url) || {})[info.quality]; // eslint-disable-line no-await-in-loop
 
             i === 0 && terminal.clearLine();
             prepareFile({
                 src: url,
-                dest: formatEpisodePath(dir, title, season, episode),
-                title,
+                dest: formatEpisodePath(info.dir, info.title, season, episode),
+                title: info.title,
                 options: { season, episode }
             });
         }
-    } else if (download === 1) {
-        let filename = `${title}.mp4`,
-            options = {};
-
-        if (settings.type === 'serial') {
-            filename = formatEpisodeFilename(title, settings.season, settings.episode);
-            options = { season, episode: settings.episode };
-        }
-
-        prepareFile({
-            src: settings.manifest[quality],
-            dest: path.resolve(process.cwd(), dir, filename),
-            title,
-            options
-        });
-    } else if (download === 0) {
-        terminal.success(`Here is your source: ${settings.manifest[quality]}`);
-    } else {
-        terminal.error('Something went wrong...');
     }
 
     browser.close();
