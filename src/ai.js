@@ -3,7 +3,7 @@ import { prompt } from 'enquirer';
 
 const currentDir = process.cwd();
 
-class AI {
+export default class AI {
     async translation(translations = []) {
         let choices = translations.map(([value, name]) => ({ name, value })),
             { value } = await prompt({
@@ -17,7 +17,7 @@ class AI {
         return value;
     }
 
-    video(manifest, title, type) {
+    video(manifest, type) {
         let choices = Object.keys(manifest).map(value => ({ name: `${value}p`, value }));
 
         return prompt([
@@ -30,9 +30,8 @@ class AI {
             },
             {
                 type: 'input',
-                name: 'title',
-                message: `Enter the ${type === 'serial' ? 'series' : 'movie'} title`,
-                initial: title
+                name: 'query',
+                message: `Type the most relevant search query for this ${type === 'tvshow' ? 'TV show' : 'movie'}`
             },
             {
                 type: 'input',
@@ -44,11 +43,11 @@ class AI {
         ]);
     }
 
-    async series() {
+    async tvshow() {
         let { value } = await prompt({
             type: 'select',
             name: 'value',
-            message: 'This is a TV series. Choose the option',
+            message: 'This is a TV show. Choose the option',
             choices: [
                 { value: 'show', name: 'Full show', message: '• Download the whole show' },
                 { value: 'last', name: 'Last episode', message: '• Download the last episode' },
@@ -91,7 +90,3 @@ class AI {
         return value;
     }
 }
-
-const ai = new AI();
-
-export default ai;

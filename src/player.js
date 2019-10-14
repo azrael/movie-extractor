@@ -10,20 +10,8 @@ const translationToken = '$TRANSLATION$';
 
 const templates = {
     movie: `/video/${translationToken}/iframe`,
-    serial: `/serial/${translationToken}/iframe`
+    tvshow: `/serial/${translationToken}/iframe`
 };
-
-async function extractTitle(page) {
-    let title = await page.evaluate(() => {
-        let $title = document.querySelector('meta[property="og:title"]');
-
-        return $title ? $title.getAttribute('content') : '';
-    });
-
-    !title && (title = await page.title());
-
-    return title || 'Unknown';
-}
 
 function createUrlFormatter(config) {
     let { type, ref, host: hostname, proto: protocol } = config;
@@ -45,7 +33,7 @@ class Crawler {
 
     async getPlayerSettings(pageUrl) {
         let page = await this.browser.newPage(),
-            frame, settings;
+            frame;
 
         await page.goto(pageUrl);
 
@@ -54,12 +42,8 @@ class Crawler {
         if (!frame) return terminal.error('Sorry, I can\'t find any video player on the page');
 
         terminal.success('Ok, I\'ve detected a video player on the page');
-        settings = await this.extractVideoInfo(frame);
 
-        return {
-            ...settings,
-            title: await extractTitle(page)
-        };
+        return this.extractVideoInfo(frame);
     }
 
     async getManifest(url) {
@@ -84,27 +68,25 @@ class Crawler {
     }
 
     async extractVideoInfo(target) {
-        let page = target,
-            info, config;
+        let page = target;
 
         if (typeof target === 'string') {
             page = await this.browser.newPage();
             await page.goto(target);
         }
 
-        config = await page.evaluate(() => Promise.resolve(window.video_balancer_options));
-        config.type = (config.content_type || 'movie').toLowerCase();
+        const config = await page.evaluate(() => Promise.resolve(window.video_balancer_options));
 
-        info = {
+        config.type = config.content_type === 'Serial' ? 'tvshow' : 'movie';
+
+        return {
             type: config.type,
-            token: config.type === 'serial' ? config.serial_token : config.video_token,
+            token: config.type === 'tvshow' ? config.serial_token : config.video_token,
             seasons: config.seasons,
             episodes: config.episodes,
-            translations: config.type === 'serial' ? config.translations : config.movie_translations,
+            translations: config.type === 'tvshow' ? config.translations : config.movie_translations,
             formatUrl: createUrlFormatter(config)
         };
-
-        return info;
     }
 }
 
