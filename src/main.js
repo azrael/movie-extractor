@@ -37,7 +37,7 @@ if (!url) {
 
 const net = new Network({ threads }),
     browser = new Browser({ headless: !argv.browser }),
-    imdb = new IMDB(),
+    imdb = new IMDB(browser),
     player = new Player(browser),
     ai = new AI();
 

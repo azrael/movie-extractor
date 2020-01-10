@@ -117,7 +117,7 @@ function getEpisodesInfo(id, season) {
     });
 }
 
-function fillData({ id, ...fields }) {
+function fillData1({ id, ...fields }) {
     return new Promise((resolve, reject) => {
         const page = new Crawler({
             ...options,
@@ -157,11 +157,54 @@ function fillData({ id, ...fields }) {
     });
 }
 
+function getText($node) {
+    return $node.innerText.trim();
+}
+
+async function fillData({ id, ...fields }, browser) {
+    const page = await browser.newPage();
+
+    await page.goto(`https://www.imdb.com/title/${id}`);
+
+    const props = {
+        ...fields,
+        ...await page.evaluate(() => new Promise(resolve => {
+            const $ = document.querySelectorAll;
+
+            const props = {
+                plot: getText($('.plot_summary .summary_text')[0]),
+                genre: []
+            };
+
+            [...$('.title_wrapper .subtext a[href*=genre]')].forEach($node => {
+                props.genre.push(getText($node));
+            });
+
+            [...$('.title_wrapper .subtext a[title*=release\\ dates]')].forEach($node => {
+                let date = new Date(Date.parse(`${getText($node)} Z`));
+
+                if (Number.isInteger(date.getTime()))
+                    props.date = formatDate(date);
+            });
+
+            resolve(props);
+        }))
+    };
+
+    return props;
+}
+
 export default class IMDB {
+    constructor(browser) {
+        this.browser = browser;
+    }
+
     async collectInfo(query) {
         let res = await search(query);
 
-        res = await fillData(res);
+        res = await fillData(res, this.browser);
+
+        console.log(res);
 
         return res;
     }
